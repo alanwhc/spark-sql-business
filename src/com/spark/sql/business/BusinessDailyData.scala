@@ -186,9 +186,15 @@ class BusinessDailyData(
       options += ("numPartitions" -> "50")
       
       val actualB2bDataDf = spark.read.format("jdbc").options(options).load
-      val cleanBaseActualDataDf = actualB2bDataDf.na.drop(Array("operate_date"))  //将确认实收时间为空的数据去除
+      val cleanBaseActualDataDf = actualB2bDataDf.na.drop(Array("operate_date","deliver_date"))  //将确认实收和确认收货时间为空的数据去除
       val actualBaseDataDf = cleanBaseActualDataDf.filter(row =>{  //选取需要的日期
-          val suchDate = row.getAs[Date]("operate_date").toString
+          val operateDate = row.getAs[Date]("operate_date")
+          val deliverDate = row.getAs[Date]("deliver_date")
+          var suchDate: String = ""
+          if(operateDate.getTime < deliverDate.getTime)
+            suchDate = deliverDate.toString
+          else
+            suchDate = operateDate.toString
           if(filterMap("date").size > 0 && !filterMap("date").contains(suchDate))
             false
           else
