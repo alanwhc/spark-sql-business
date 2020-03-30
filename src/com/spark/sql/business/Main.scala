@@ -67,8 +67,8 @@ object Main {
     val dates = List(yesterday,year,month,day)
     val businessDailyObj = new BusinessDailyData(spark,options,dates,urls)
     businessDailyObj.deliveredOrderData
-    //businessDailyObj.vehiclePartOrderData
-    //businessDailyObj.repeatPurchaseShop(500)
+    businessDailyObj.vehiclePartOrderData
+    businessDailyObj.repeatPurchaseShop(500)
     
   }
 }
