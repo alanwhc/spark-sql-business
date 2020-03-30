@@ -17,23 +17,25 @@ object Main {
  
     var spark: SparkSession =  null
     
-    var dbUrl: String = ""
+    var dbUrl1: String = ""; var dbUrl2: String = ""; var dbUrl3: String = ""
     var user: String = ""
     var password: String = ""
     
     if(env == "test"){
-      dbUrl = "jdbc:mysql://rm-uf6hnc20q03xba0l0ao.mysql.rds.aliyuncs.com/jiaanpei_report_db?rewriteBatchedStatements=true&serverTimezone=Asia/Shanghai"
+      dbUrl1 = "jdbc:mysql://rm-uf6hnc20q03xba0l0ao.mysql.rds.aliyuncs.com/jiaanpei_report_db?rewriteBatchedStatements=true&serverTimezone=Asia/Shanghai"
+      dbUrl2 = "jdbc:mysql://rm-uf6hnc20q03xba0l0ao.mysql.rds.aliyuncs.com/salesdb?rewriteBatchedStatements=true&serverTimezone=Asia/Shanghai"
       user = "bigdata"
       password = "Bigdata1234"
       spark = SparkSession
         .builder
-        .master("local")
+        //.master("local")
         .config(conf)
         //.enableHiveSupport
         .getOrCreate
     }
     else{
-      dbUrl = "jdbc:mysql://rm-j5e2v8ius50974f67.mysql.rds.aliyuncs.com/jiaanpei_report_db?rewriteBatchedStatements=true&serverTimezone=Asia/Shanghai"
+      dbUrl1 = "jdbc:mysql://rm-j5e2v8ius50974f67.mysql.rds.aliyuncs.com/jiaanpei_report_db?rewriteBatchedStatements=true&serverTimezone=Asia/Shanghai"
+      dbUrl2 = "jdbc:mysql://rm-j5e2v8ius50974f67.mysql.rds.aliyuncs.com/salesdb?rewriteBatchedStatements=true&serverTimezone=Asia/Shanghai"
       user = "super_dbm"  
       password = "Whc910131"
       spark = SparkSession
@@ -44,13 +46,13 @@ object Main {
     }
     
     var options = Map(
-        "url" -> dbUrl,
         "user" -> user,
         "password" -> password,
         "driver" -> "com.mysql.cj.jdbc.Driver",
         "batachsize" -> "10000"
         )
     
+    val urls = List(dbUrl1,dbUrl2)
     var dateFormat: SimpleDateFormat = new SimpleDateFormat("yyyy-MM-dd")
     var calendar: Calendar = Calendar.getInstance
     calendar.add(Calendar.DATE, -1)
@@ -63,8 +65,10 @@ object Main {
     val day = dateFormat.format(calendar.getTime) 
     
     val dates = List(yesterday,year,month,day)
-    val businessDailyObj = new BusinessDailyData(spark,options,dates)
+    val businessDailyObj = new BusinessDailyData(spark,options,dates,urls)
     businessDailyObj.deliveredOrderData
     businessDailyObj.vehiclePartOrderData
+    businessDailyObj.repeatPurchaseShop(500)
+    
   }
 }

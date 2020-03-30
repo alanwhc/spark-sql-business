@@ -6,26 +6,52 @@ package com.spark.sql.business
 
 import org.apache.spark.sql.SparkSession
 import scala.collection.mutable.Map
-import java.sql.{Date,Timestamp}
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types.{DecimalType,Decimal,DataType}
-import java.sql.{Connection,Statement,SQLException,DriverManager}
+import java.sql.{Connection,Statement,SQLException,DriverManager,Date,Timestamp}
 import org.apache.spark.sql.{Dataset,Row}
+import javax.crypto.spec.PSource
 
 class BusinessDailyData(
     val sparkSession: SparkSession,
     val optionsMap: Map[String,String],
-    val dates: List[String]){
+    val dates: List[String],
+    val urls: List[String]) extends Serializable{
     @transient private val spark = sparkSession
     @transient private val options = optionsMap
     @transient private val date = dates
+    @transient private val jiaanpeiReportDb = urls(0)
+    @transient private val salesDb = urls(1)
+    
+    /**
+     * 插入MySQL数据库
+     */
+    @transient
+    private def insertIntoTable(url: String, user: String, password: String, sql: String){
+      var conn: Connection = null
+      var stmt: Statement = null
+      try{
+        conn = DriverManager.getConnection(url, user, password)
+        stmt = conn.createStatement
+        stmt.execute(sql)
+      }catch{
+        case e: SQLException => e.printStackTrace
+      }finally{
+        if(stmt != null)
+          stmt.close
+        if(conn != null)
+          conn.close
+      }
+    }
+    
     //
     //  每日业绩统计
     //
     def deliveredOrderData {
       val config = new Configuration()
+      options += ("url" -> jiaanpeiReportDb)
       options += ("dbtable" -> "base_jap_order")
       options += ("partitionColumn" -> "id")
       options += ("lowerBound" -> "1")
@@ -248,13 +274,7 @@ class BusinessDailyData(
            val noPaidOrder = resultData.getAs[Long]("noPaidOrder")  //支付订单量
            val amountPaidOrder = resultData.getAs[java.math.BigDecimal]("amountPaidOrder")  //支付订单金额
            val amountPaidPiccOrder = resultData.getAs[java.math.BigDecimal]("amountPaidPiccOrder")  //支付人保订单金额
-           
-           var conn: Connection = null
-           var stmt: Statement = null
-           try{
-             conn = DriverManager.getConnection(url, user, password)
-             stmt = conn.createStatement
-             val sql = (""
+           val sql = (""
                  + "INSERT INTO " + tableName + " (pid,province,city,"
                  + "no_b2b_order,no_picc_order,amount_b2b_order,amount_b2b_purchase_order,amount_picc_selfopOrder,amount_picc_marriedDeal,amount_nonpicc_selfopOrder,amount_nonpicc_marriedDeal,amount_picc_direct,amount_b2b_income,"
                  + "no_b2b_actual_order,no_picc_actual_order,amount_b2b_actual_order,amount_b2b_actual_purchaseOrder,amount_picc_actual_selfopOrder,amount_picc_actual_marriedDeal,amount_nonpicc_actual_selfopOrder,amount_nonpicc_actual_marriedDeal,amount_actual_picc_direct,amount_b2b_actual_income,"
@@ -269,16 +289,7 @@ class BusinessDailyData(
                  + "ON DUPLICATE KEY UPDATE "
                    + "insert_time = NOW()"
                  )
-             println(sql)
-             stmt.execute(sql)
-           }catch{
-             case e: SQLException => e.printStackTrace
-           }finally{
-             if(stmt != null)
-               stmt.close
-             if(conn != null)
-               conn.close
-           }
+          insertIntoTable(url, user, password, sql)
          })
       }
       
@@ -288,6 +299,7 @@ class BusinessDailyData(
       def vehiclePartOrderData {
         val allDates = this.date
         val config = new Configuration()
+        options += ("url" -> jiaanpeiReportDb)
         options += ("dbtable" -> "base_jap_order")
         options += ("partitionColumn" -> "id")
         options += ("lowerBound" -> "1")
@@ -395,7 +407,7 @@ class BusinessDailyData(
         val paidDf = baseB2bDataDf.na.drop(Array("payment_date")).filter(row =>{
           val paymentDate = row.getAs[Date]("payment_date")
           val orderStatus = row.getAs[String]("order_status")
-          if(paymentDate.getTime >= new SimpleDateFormat("yyyy-MM-dd").parse("2020-01-01").getTime 
+          if(paymentDate.getTime >= new SimpleDateFormat("yyyy-MM-dd").parse(allDates(1)+"-01-01").getTime 
               && paymentDate.getTime <= new SimpleDateFormat("yyyy-MM-dd").parse(allDates(0)).getTime
               && List("500","600").contains(orderStatus))
             true
@@ -442,14 +454,8 @@ class BusinessDailyData(
           val piccSelfopNotDelivered = row.getAs[Double]("piccSelfopNotDelivered")  //人保自营支付完成未确认收货金额
           val piccMarriedNotDelivered = row.getAs[Double]("piccMarriedNotDelivered")  //人保撮合支付完成未确认收货金额
           val nonpiccSelfopNotDelivered = row.getAs[Double]("NonpiccSelfopNotDelivered")  //非人保自营支付完成未确认收货金额
-          val nonpiccMarriedNotDelivered = row.getAs[Double]("NonpiccMarriedNotDelivered")  //非人保撮合支付完成未确认收货金额
-          
-          var conn: Connection = null
-          var stmt: Statement = null
-          try{
-             conn = DriverManager.getConnection(url, user, password)
-             stmt = conn.createStatement
-             val sql = (""
+          val nonpiccMarriedNotDelivered = row.getAs[Double]("NonpiccMarriedNotDelivered")  //非人保撮合支付完成未确认收货金额 
+          val sql = (""
                  + "INSERT INTO " + tableName + " (pid,province,city,"
                  + "amount_commercial_vehicle,amount_passenger_vehicle,amount_other_vehicle,"
                  + "amount_oem,amount_am,amount_commercial_vehicle_oem,amount_commercial_vehicle_am,"
@@ -473,16 +479,211 @@ class BusinessDailyData(
                    + "amount_nonpicc_selfop_notdelivered = " + nonpiccSelfopNotDelivered + ", amount_nonpicc_marriedDeal_notdelivered = " + nonpiccMarriedNotDelivered + ","
                    + "update_time = NOW()"
                  )
-             println(sql)
-             stmt.execute(sql)
-           }catch{
-             case e: SQLException => e.printStackTrace
-           }finally{
-             if(stmt != null)
-               stmt.close
-             if(conn != null)
-               conn.close
-          }
+          insertIntoTable(url, user, password, sql)
         })
       }
+      
+      /**
+       * 复购修理厂统计
+       */
+    def repeatPurchaseShop(price: Int) {
+        val allDates = this.date
+        val config = new Configuration()
+        options += ("url" -> jiaanpeiReportDb)
+        options += ("dbtable" -> "base_jap_order")
+        options += ("partitionColumn" -> "id")
+        options += ("lowerBound" -> "1")
+        options += ("upperBound" -> config.getUpperBound(options).toString)
+        options += ("numPartitions" -> "50")
+        
+        val filterMap = Map(
+              "date" -> List(allDates(0)),
+              "b2b" -> List("1"),
+              "picc" -> List("1"))
+              
+        val date = allDates(0); val year = allDates(1); val month = allDates(2); val day = allDates(3)
+        var url: String = ""; var user: String = ""; var password: String = ""; var tableName: String = ""
+        
+        val baseB2bDataDf = spark.read.format("jdbc").options(options).load
+          .filter(row =>{
+              if(filterMap("b2b").size > 0 && !filterMap("b2b").contains(row.getAs[String]("is_b2b")))
+                false
+              else if(filterMap("picc").size >0 && !filterMap("picc").contains(row.getAs[String]("is_picc")))
+                false
+              else
+                true
+            })
+          .na.drop(Array("deliver_date"))
+          
+        //筛选出价格大于等于500，并且确认收货日期在当年1月1日至上月最后一天的订单
+        //并去重取修理厂id
+        var startDate: Date = null
+        var endDate: Date = null
+        if(month == "1")
+          endDate = config.getDateValue(options, date, "thismonthlastday")
+        else
+          endDate = config.getDateValue(options, date, "lastmonthlastday")
+        val baseRepeatShopIdDf = baseB2bDataDf.filter(row => {
+          val orderAmount = row.getAs[java.math.BigDecimal]("order_amount").doubleValue  //订单金额
+          val deliverDate = row.getAs[Date]("deliver_date")  //确认收货日期
+          if(deliverDate.getTime >= new SimpleDateFormat("yyyy-MM-dd").parse(year+"-01-01").getTime
+             && deliverDate.getTime <= endDate.getTime
+             && orderAmount >= price)
+            true
+          else
+            false
+          }).select("repair_id").distinct
+
+        options += ("dbtable" -> "jc_core_user")
+        options += ("partitionColumn" -> "user_id")
+        
+        val coreUserDf = spark.read.format("jdbc").options(options).load
+        val repairShopInfoDf = baseRepeatShopIdDf.as("df1")
+          .join(broadcast(coreUserDf).as("df2"),baseRepeatShopIdDf("repair_id") === coreUserDf("user_id"),"inner")
+          .select(
+              col("df1.repair_id") as "repairId", 
+              col("df2.company_name") as "name",
+              col("df2.provinceCode") as "province",
+              col("df2.cityCode") as "city")
+        
+        //将分母修理厂明细数据插入salesdb中修理厂明细表
+        options += ("url" -> salesDb)
+        options += ("dbtable" -> "data_repeat_shop_detail_copy")
+        
+        url = options("url"); user = options("user"); password = options("password"); tableName = options("dbtable")
+        repairShopInfoDf.foreach(row => {
+          val repairId = row.getAs[Long]("repairId")
+          val repairName = row.getAs[String]("name")
+          val province = row.getAs[String]("province")
+          val city = row.getAs[String]("city")
+          val sql = (""
+              + "INSERT INTO " + tableName + "(shop_id,shop_name,province,city,year,month,type,create_time,update_time) "
+              + "VALUES (" + repairId + ",'" + repairName + "','" + province + "','" + city + "','" + year + "','" + month.drop(1) + "','2',NOW(),NOW()) "
+              + "ON DUPLICATE KEY UPDATE shop_id = " + repairId + "")          
+          insertIntoTable(url, user, password, sql)
+        })
+        
+        //根据分母修理厂明细数据按省份、地市计算分母修理厂数据
+        val baseProvinceCityRepeatShopDf = repairShopInfoDf.groupBy("province", "city")
+          .agg(count("repairId") as "noShop")
+        
+        //将上述计算的修理厂数据插入salesdb统计数据
+        options += ("url" -> jiaanpeiReportDb)
+        options += ("dbtable" -> "business_daily_complementary_data_copy")
+        url = options("url"); user = options("user"); password = options("password"); tableName = options("dbtable")
+        baseProvinceCityRepeatShopDf.foreach(row => {
+         val province = row.getAs[String]("province")
+         val city = row.getAs[String]("city")
+         val noShop = row.getAs[Long]("noShop")
+         val pid = province + city + year + month + day
+         val yrMth = year + month
+         
+         val sql = (""
+             + "INSERT INTO " + tableName + "(pid,province,city,repeat_purchase_shop_previous,date,yr_mth,create_time,update_time) "
+             + "VALUES ('" + pid + "','" + province + "','" + city + "',"
+             + noShop + ",'" + date + "','" + yrMth + "',NOW(),NOW()) "
+             + "ON DUPLICATE KEY UPDATE repeat_purchase_shop_previous = " + noShop + ",update_time = NOW()") 
+         insertIntoTable(url, user, password, sql)
+       })
+       
+        //根据分母修理厂明细数据按省份计算
+        val baseProvinceRepeatShopDf = repairShopInfoDf.groupBy("province")
+          .agg(count("repairId") as "noShop")
+       
+        //插入salesdb中指定表
+        options += ("url" -> salesDb)
+        options += ("dbtable" -> "data_active_shop_copy")
+        url = options("url"); user = options("user"); password = options("password"); tableName = options("dbtable")
+        baseProvinceRepeatShopDf.foreach(row => {
+          val province = row.getAs[String]("province")
+          val noShop = row.getAs[Long]("noShop")
+          val pid = province + date
+         
+          val sql = (""
+             + "INSERT INTO " + tableName + "(pid,province,previous_repeat_shop,date,create_time,update_time) "
+             + "VALUES ('" + pid + "','" + province + "',"
+             + noShop + ",'" + date + "',NOW(),NOW()) "
+             + "ON DUPLICATE KEY UPDATE previous_repeat_shop = " + noShop + ",update_time = NOW()")
+          insertIntoTable(url, user, password, sql)
+        })
+          
+        //计算本月产生人保交易，金额>=500
+        startDate = config.getDateValue(options, date, "firstdayinmonth")
+        println(startDate)
+        val thisMonthValidShopDf = baseB2bDataDf.filter(row => {
+          val orderAmount = row.getAs[java.math.BigDecimal]("order_amount").doubleValue
+          val deliverDate = row.getAs[Date]("deliver_date")
+          if(deliverDate.getTime >= startDate.getTime
+              && deliverDate.getTime <= new SimpleDateFormat("yyyy-MM-dd").parse(date).getTime
+              && orderAmount >= price)
+            true
+          else
+            false
+        })
+        
+        //JOIN分母修理厂明细
+        val repeatShopInfoDf = repairShopInfoDf.as("df1")
+          .join(broadcast(thisMonthValidShopDf).as("df2"),repairShopInfoDf("repairId") === thisMonthValidShopDf("repair_id"),"inner")
+          .select(col("df2.repair_id"), col("df2.repair_name"),col("df1.province"),col("df1.city"))
+        //选取关键字段插入复购修理厂明细表
+        options += ("url" -> salesDb)
+        options += ("dbtable" -> "data_repeat_shop_detail_copy")
+        url = options("url"); user = options("user"); password = options("password"); tableName = options("dbtable")
+        repeatShopInfoDf.foreach(row => {
+          val repairId = row.getAs[Long]("repair_id")
+          val repairName = row.getAs[String]("repair_name")
+          val province = row.getAs[String]("province")
+          val city = row.getAs[String]("city")
+          
+          val sql = (""
+             + "INSERT INTO " + tableName + "(shop_id,shop_name,province,city,year,month,type,repeat_date,create_time,update_time) "
+             + "VALUES (" + repairId + ",'" + repairName + "','" + province + "','" + city + "','"
+             + year + "','" + month.drop(1) + "','1','" + date + "',NOW(),NOW()) "
+             + "ON DUPLICATE KEY UPDATE shop_id = " + repairId + ",update_time = NOW()") 
+          
+          insertIntoTable(url, user, password, sql)
+        })
+        
+        //聚合计算省、市维度复购修理厂数量，插入jiaanpei_report_db省市统计中
+        val repeatShopProvinceCityDf = repeatShopInfoDf.groupBy("province", "city")
+          .agg(countDistinct("repair_id") as "noShop")
+        options += ("url" -> jiaanpeiReportDb)
+        options += ("dbtable" -> "business_daily_complementary_data_copy")
+        url = options("url"); user = options("user"); password = options("password"); tableName = options("dbtable")
+        repeatShopProvinceCityDf.foreach(row => {
+          val province = row.getAs[String]("province")
+          val city = row.getAs[String]("city")
+          val pid = province + city + year + month + day
+          val noShop = row.getAs[Long]("noShop")
+          val yrMth = year + month
+          
+          val sql = (""
+             + "INSERT INTO " + tableName + "(pid,province,city,repeat_purchase_shop,date,yr_mth,create_time,update_time) "
+             + "VALUES ('" + pid + "','" + province + "','" + city + "',"
+             + noShop + ",'" + date + "','" + yrMth + "',NOW(),NOW())"
+             + "ON DUPLICATE KEY UPDATE repeat_purchase_shop = " + noShop + ",update_time = NOW()") 
+         
+          insertIntoTable(url, user, password, sql)
+        })
+          
+        //聚合省份计算复购修理厂数量，插入salesdb统计
+        val repeatShopProvinceDf = repeatShopInfoDf.groupBy("province")
+          .agg(countDistinct("repair_id") as "noShop")
+        options += ("url" -> salesDb)
+        options += ("dbtable" -> "data_active_shop_copy")
+        url = options("url"); user = options("user"); password = options("password"); tableName = options("dbtable")
+        repeatShopProvinceDf.foreach(row => {
+          val province = row.getAs[String]("province")
+          val noShop = row.getAs[Long]("noShop")
+          val pid = province + date
+          
+          val sql = (""
+             + "INSERT INTO " + tableName + "(pid,province,this_month_repeat_shop,date,create_time,update_time) "
+             + "VALUES ('" + pid + "','" + province + "'," + noShop + ",'"
+             + date + "',NOW(),NOW()) "
+             + "ON DUPLICATE KEY UPDATE this_month_repeat_shop = " + noShop + ",update_time = NOW()") 
+          
+          insertIntoTable(url, user, password, sql)
+        })
+    }
 }
