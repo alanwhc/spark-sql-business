@@ -10,9 +10,8 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types.{DecimalType,Decimal,DataType}
-import java.sql.{Connection,Statement,SQLException,DriverManager,Date,Timestamp}
+import java.sql.{Connection,Statement,SQLException,DriverManager,Date}
 import org.apache.spark.sql.{Dataset,Row}
-import javax.crypto.spec.PSource
 
 class BusinessDailyData(
     val sparkSession: SparkSession,

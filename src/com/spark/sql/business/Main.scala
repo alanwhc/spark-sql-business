@@ -21,16 +21,25 @@ object Main {
     var user: String = ""
     var password: String = ""
     
-    if(env == "test"){
+    if(env == "local"){
       dbUrl1 = "jdbc:mysql://rm-uf6hnc20q03xba0l0ao.mysql.rds.aliyuncs.com/jiaanpei_report_db?rewriteBatchedStatements=true&serverTimezone=Asia/Shanghai"
       dbUrl2 = "jdbc:mysql://rm-uf6hnc20q03xba0l0ao.mysql.rds.aliyuncs.com/salesdb?rewriteBatchedStatements=true&serverTimezone=Asia/Shanghai"
       user = "bigdata"
       password = "Bigdata1234"
       spark = SparkSession
         .builder
-        //.master("local")
+        .master("local")
         .config(conf)
-        //.enableHiveSupport
+        .getOrCreate
+    }
+    else if(env == "test"){
+      dbUrl1 = "jdbc:mysql://rm-uf6hnc20q03xba0l0ao.mysql.rds.aliyuncs.com/jiaanpei_report_db?rewriteBatchedStatements=true&serverTimezone=Asia/Shanghai"
+      dbUrl2 = "jdbc:mysql://rm-uf6hnc20q03xba0l0ao.mysql.rds.aliyuncs.com/salesdb?rewriteBatchedStatements=true&serverTimezone=Asia/Shanghai"
+      user = "bigdata"
+      password = "Bigdata1234"
+      spark = SparkSession
+        .builder
+        .config(conf)
         .getOrCreate
     }
     else{
@@ -41,7 +50,6 @@ object Main {
       spark = SparkSession
         .builder
         .config(conf)
-        //.enableHiveSupport
         .getOrCreate
     }
     
@@ -70,5 +78,8 @@ object Main {
     businessDailyObj.vehiclePartOrderData
     businessDailyObj.repeatPurchaseShop(500)
     
+    val managerAchievementObj = new ManagerAchievement(spark,options,dates,urls)
+    managerAchievementObj.managerAchievement
+    managerAchievementObj.marriedServiceCharge
   }
 }
