@@ -53,7 +53,6 @@ class Configuration{
           sql = "SELECT date_format('" + date + "', '%Y-01-01') AS target_day"
         else
           sql = ""
-        println(sql)
         conn = DriverManager.getConnection(options("url"), options("user"), options("password"))
         stmt = conn.createStatement
         result = stmt.executeQuery(sql)

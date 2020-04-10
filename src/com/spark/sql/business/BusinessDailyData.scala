@@ -208,6 +208,7 @@ class BusinessDailyData(
             col("df2.is_fbj") as "is_fbj",
             col("df2.is_picc") as "is_picc",
             col("df2.order_id") as "order_id",
+            col("df2.vehicle_type") as "vehicle_type",
             col("df2.payment_type") as "payment_type",
             col("df1.operate_code") as "operate_code",
             col("df2.deliver_date") as "deliver_date",
@@ -218,7 +219,7 @@ class BusinessDailyData(
       //过滤确认收货时间在2020年1月1日之前的撮合账期订单
       val filteredActualBaseDataDf = spark.sql(""
          + "SELECT "
-           + "id,province,city,is_fbj,is_picc,order_id,payment_type,"
+           + "id,province,city,is_fbj,is_picc,order_id,payment_type,vehicle_type,"
            + "operate_code,deliver_date,order_amount,purchase_amount "
         + "FROM actual_data_temp "
         + "WHERE CASE WHEN operate_code IN ('03','04') THEN deliver_date >= '2020-01-01' ELSE 1=1 END")
@@ -233,6 +234,8 @@ class BusinessDailyData(
             sum(when(col("is_picc").equalTo("1") && col("is_fbj").equalTo("0"),col("order_amount")).otherwise(0)) as "amountActualPiccMarriedOrder",
             sum(when(col("is_picc").equalTo("0") && col("is_fbj").equalTo("1"),col("order_amount")).otherwise(0)) as "amountActualNonPiccSelfopOrder",
             sum(when(col("is_picc").equalTo("0") && col("is_fbj").equalTo("0"), col("order_amount")).otherwise(0)) as "amountActualNonPiccMarriedOrder",
+            sum(when(col("vehicle_type").equalTo("1"), col("order_amount")).otherwise(0)) as "amountActualPassenger",
+            sum(when(col("vehicle_type").equalTo("0"), col("order_amount")).otherwise(0)) as "amountActualCommercial",            
             sum(when(col("is_picc").equalTo("1") && col("payment_type").equalTo("05"), col("order_amount")).otherwise(0)) as "amountActualPiccDirect",
             round(sum(when(col("is_fbj").equalTo("1"), col("order_amount")).otherwise(0)) / 1.13, 2) as "amountActualIncome"            
             )
@@ -275,6 +278,8 @@ class BusinessDailyData(
            val amountActualNonPiccSelfopOrder = resultData.getAs[java.math.BigDecimal]("amountActualNonPiccSelfopOrder")  //确认实收非人保自营交易额
            val amountActualNonPiccMarriedDeal = resultData.getAs[java.math.BigDecimal]("amountActualNonPiccSelfopOrder")  //确认实收非人保撮合交易额
            val amountActualPiccDirectOrder = resultData.getAs[java.math.BigDecimal]("amountActualPiccDirect")  //确认实收保险直赔交易额
+           val amountActualPassenger = resultData.getAs[java.math.BigDecimal]("amountActualPassenger")  //确认实收乘用车交易额
+           val amountActualCommercial = resultData.getAs[java.math.BigDecimal]("amountActualCommercial")  //确认实收乘用车交易额        
            val amountActualIncome = resultData.getAs[Double]("amountActualIncome")  //确认实收营收
            val noPaidOrder = resultData.getAs[Long]("noPaidOrder")  //支付订单量
            val amountPaidOrder = resultData.getAs[java.math.BigDecimal]("amountPaidOrder")  //支付订单金额
@@ -283,12 +288,12 @@ class BusinessDailyData(
                  + "INSERT INTO " + tableName + " (pid,province,city,"
                  + "no_b2b_order,no_picc_order,amount_b2b_order,amount_b2b_purchase_order,amount_picc_selfopOrder,amount_picc_marriedDeal,amount_nonpicc_selfopOrder,amount_nonpicc_marriedDeal,amount_picc_direct,amount_b2b_income,"
                  + "no_b2b_actual_order,no_picc_actual_order,amount_b2b_actual_order,amount_b2b_actual_purchaseOrder,amount_picc_actual_selfopOrder,amount_picc_actual_marriedDeal,amount_nonpicc_actual_selfopOrder,amount_nonpicc_actual_marriedDeal,amount_actual_picc_direct,amount_b2b_actual_income,"
-                 + "no_paid_b2bOrder,amount_paid_b2bOrder,amount_paid_piccOrder,"
+                 + "no_paid_b2bOrder,amount_paid_b2bOrder,amount_paid_piccOrder,amount_passenger_order,amount_commercial_order,"
                  + "yr_mth,date,insert_time) "
                  + "VALUES ('" + pid + "','" + province + "','" + city + "',"
                            + noB2bOrder + "," + noPiccOrder + "," + amountB2bOrder + "," + amountPurchaseOrder + "," + amountPiccSelfopOrder + "," + amountPiccMarriedDeal + "," + amountNonPiccSelfopOrder + "," + amountNonPiccMarriedDeal + "," + amountPiccDirectOrder + "," + amountIncome + ","
                            + noActualB2bOrder + "," + noActualPiccOrder + "," + amountActualB2bOrder + "," + amountActualPurchaseOrder + "," + amountAcutalPiccSelfopOrder + "," + amountActualPiccMarriedDeal + "," + amountActualNonPiccSelfopOrder + "," + amountActualNonPiccMarriedDeal + "," + amountActualPiccDirectOrder + "," + amountActualIncome + ","
-                           + noPaidOrder + "," + amountPaidOrder + "," + amountPaidPiccOrder + ",'"
+                           + noPaidOrder + "," + amountPaidOrder + "," + amountPaidPiccOrder + "," + amountActualPassenger + "," + amountActualCommercial + ",'"
                  + yrMth + "','" + allDates(0) + "',"
                  + "NOW()) "
                  + "ON DUPLICATE KEY UPDATE "
