@@ -53,6 +53,8 @@ class Config(val url1: String = "", val user1: String = "", val password1: Strin
           sql = "SELECT date_format('" + date + "', '%Y-01-01') AS target_day"
         else if(_type == "todayOfLastYear")
           sql = "SELECT date_add('" + date + "', INTERVAL -1 YEAR) AS target_day"
+        else if(_type == "dayOfLastQuarter")
+          sql = "SELECT date_add('" + date + "', INTERVAL -90 DAY) AS target_day"
         else
           sql = ""
         conn = DriverManager.getConnection(options("url"), options("user"), options("password"))

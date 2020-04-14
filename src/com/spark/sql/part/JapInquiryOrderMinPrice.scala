@@ -34,7 +34,7 @@ class JapInquiryOrderMinPrice(
   case class MinOfferPrice(pid:String, province:String, brand:String, brandCode: String, oe:String, tempOe:String, quality:String, salePrice:java.math.BigDecimal,deliverTime:String)
   
   /**
-   * 获取询价数据
+   * 获取交易数据
    */
   private def getOrderMinPrice{
     var partitionColumn = "damage_parts_id"
@@ -59,7 +59,7 @@ class JapInquiryOrderMinPrice(
         else if(row.getAs[java.math.BigDecimal]("sale_price").doubleValue <= 5) false  //剔除配件价格<=5的数据
         else true
       })
-      
+         
     val orderMinPriceDf = baseInquiryDataDf.groupBy("car_brand", "temp_oe", "quality_type")
       .agg(
           min(col("province")) as "province",
@@ -70,7 +70,7 @@ class JapInquiryOrderMinPrice(
       .withColumn("updateTime", current_timestamp())
     
     /**
-     * 关联原数据，更新报价金额
+     * 关联原数据，更新成交金额
      */
     partitionColumn = "id"
     options += ("url" -> piccclaimDb)
@@ -104,7 +104,7 @@ class JapInquiryOrderMinPrice(
     val selectedJapOrderPartsDf = selectedJapOrderPartsTempDf.as("df1").join(broadcast(brandCodeDf).as("df2"), selectedJapOrderPartsTempDf("car_brand") === brandCodeDf("standard_brand_name"),"left")
       
     /**
-     * 插入更新报价数据  
+     * 插入更新成交数据  
      */
     val url = piccclaimDb; val user = piccclaimDbUser; val password = piccclaimDbPwd; val tableName = "jap_order_parts"
     selectedJapOrderPartsDf.foreachPartition(iter => {
