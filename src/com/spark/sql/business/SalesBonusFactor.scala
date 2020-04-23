@@ -186,7 +186,6 @@ class SalesBonusFactor(
     try{
       conn = DriverManager.getConnection(url, user, password)
       stmt = conn.createStatement
-      println(sql)
       stmt.execute(sql)
     }catch{
       case e: SQLException => e.printStackTrace

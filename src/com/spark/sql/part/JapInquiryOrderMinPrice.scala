@@ -60,14 +60,18 @@ class JapInquiryOrderMinPrice(
         else true
       })
          
-    val orderMinPriceDf = baseInquiryDataDf.groupBy("car_brand", "temp_oe", "quality_type")
+    var orderMinPriceDf = baseInquiryDataDf.groupBy("car_brand", "temp_oe", "quality_type")
       .agg(
-          min(col("province")) as "province",
-          min(col("deliver_time")) as "deliverTime",
-          min(col("part_oe")) as "oe",
           min(col("sale_price")) as "minSalePrice")
       .withColumn("iPid", concat(col("car_brand"),col("temp_oe"),col("quality_type")))
       .withColumn("updateTime", current_timestamp())
+    
+    orderMinPriceDf = baseInquiryDataDf.as("df1").join(broadcast(orderMinPriceDf).as("df2"), 
+        baseInquiryDataDf("car_brand") === baseInquiryDataDf("car_brand") && baseInquiryDataDf("temp_oe") === orderMinPriceDf("temp_oe") && baseInquiryDataDf("quality_type") === orderMinPriceDf("quality_type") && baseInquiryDataDf("sale_price") === orderMinPriceDf("minSalePrice"),
+        "inner")
+      .select(
+          col("df2.iPid"),col("df2.car_brand"),col("df2.temp_oe"),col("df2.quality_type"),col("df2.minSalePrice"),
+          col("df1.province"),col("df1.part_oe") as "oe",col("df1.deliver_time") as "deliverTime")
     
     /**
      * 关联原数据，更新成交金额

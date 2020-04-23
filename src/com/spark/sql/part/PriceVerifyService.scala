@@ -33,7 +33,7 @@ class PriceVerifyService(
       maxSalePrice: java.math.BigDecimal = null, maxSaleProvince: String = "", maxSaleDeliverTime: String = "")
   case class AverageSalePrice(pid: String = "", brand: String = "", brandCode: String = "", oe: String = "", tempOe: String = "", quality: String = "", 
       avgSalePrice: java.math.BigDecimal = null, noSaleParts: Long = 0)
-  case class BaseOrderPart(orderItemId: Long = 0, brand: String = "", brandCode: String = "", oe: String = "", tempOe: String = "",
+  case class BaseOrderPart(orderItemId: Long = 0, vin: String = "", brand: String = "", brandCode: String = "", oe: String = "", tempOe: String = "",
       quality: String = "", partName: String = "", province: String = "",manuPrice: java.math.BigDecimal = null, salePrice: java.math.BigDecimal = null, deliverTime: String = "")
     
   def calculatePrice{
@@ -42,7 +42,7 @@ class PriceVerifyService(
     options += ("url" -> jiaanpeiReportDb)    
     options += ("user" -> jiaanpeiReportDbUser)
     options += ("password" -> jiaanpeiReportDbPwd)
-    options += ("dbtable" -> "base_jap_parts")
+    options += ("dbtable" -> "base_jap_order_item")
     options += ("partitionColumn" -> partitionColumn)
     options += ("lowerBound" -> "1")
     options += ("upperBound" -> config.getUpperBound(options,partitionColumn).toString)
@@ -161,11 +161,12 @@ class PriceVerifyService(
       val list = new ListBuffer[BaseOrderPart]
       iter.foreach(row => {
         val orderItemId: Long = row.getAs("orderitem_id");val brandCode: String = row.getAs("standard_brand_code"); val brand: String = row.getAs("car_brand")
+        val vin: String = row.getAs("vinno")
         val oe: String = row.getAs("part_oe"); val tempOe: String = row.getAs("temp_oe");val quality: String = row.getAs("quality_type");
         val partName: String = row.getAs("part_name"); val province: String = row.getAs("province"); val manuPrice: java.math.BigDecimal = row.getAs("sys_manufacture_price")
         val salePrice: java.math.BigDecimal = row.getAs("sale_price")
         val deliverTime = row.getAs[Timestamp]("deliver_time").toString.split(" ")(0)
-        list.append(BaseOrderPart(orderItemId,brand,brandCode,oe,tempOe,quality,partName,province,manuPrice,salePrice,deliverTime))
+        list.append(BaseOrderPart(orderItemId,vin,brand,brandCode,oe,tempOe,quality,partName,province,manuPrice,salePrice,deliverTime))
       })
       var conn: Connection = null
       var stmt: Statement = null
@@ -175,8 +176,8 @@ class PriceVerifyService(
         var sql = ""
         for(ele <- list){
           sql = (""
-              + "INSERT INTO " + options("dbtable") + " (orderitem_id,brand_code,brand,part_oe,temp_oe,quality,part_name,province,manufacture_price,sale_price,deliver_time,create_time,update_time) "
-              + "VALUES (" + ele.orderItemId + ",'" + ele.brandCode + "','" + ele.brand + "','" + ele.oe + "','" + ele.tempOe + "','" + ele.quality + "','"
+              + "INSERT INTO " + options("dbtable") + " (orderitem_id,vinno,brand_code,brand,part_oe,temp_oe,quality,part_name,province,manufacture_price,sale_price,deliver_time,create_time,update_time) "
+              + "VALUES (" + ele.orderItemId + ",'" + ele.vin + "','" + ele.brandCode + "','" + ele.brand + "','" + ele.oe + "','" + ele.tempOe + "','" + ele.quality + "','"
               + ele.partName + "','" + ele.province + "'," + ele.manuPrice + "," + ele.salePrice + ",'" + ele.deliverTime + "',NOW(),NOW()) "
               + "ON DUPLICATE KEY UPDATE "
                 + "update_time = NOW();")
