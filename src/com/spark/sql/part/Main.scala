@@ -14,7 +14,7 @@ object Main {
     val brands = args(3)  //需要比对的品牌
     val provinces = args(4)  //需要比对价格的省份*/
     val conf = new SparkConf()
-      .setAppName("PartAnalysis")
+      .setAppName("PartPriceMatchingAndPriceVerification")
       .set("spark.default.parallelism", "48")
       .set("spark.sql.shuffle.partitions","50")
       
@@ -93,7 +93,5 @@ object Main {
     val priceVerifyObj = new PriceVerifyService(spark,options,dates,configs)
     priceVerifyObj.calculatePrice
     
-    //val priceMatchingObj = new LocalPriceMatching(spark,options,dates,configs,targetProvince,brands,provinces)
-    //priceMatchingObj.priceMatching
   }
 }
